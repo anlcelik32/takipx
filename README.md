@@ -1,0 +1,2 @@
+# takipx
+Geliştirme Aşamasında
