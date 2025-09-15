@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AdaletApp - TakipX | Ara Karar Takip Sistemi</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Confetti Animation Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <!-- Chart.js for Reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Custom Styles and Animations */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInScale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes welcome-fade-in { to { opacity: 1; transform: translateY(0); } }
+
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        .fade-in-scale { animation: fadeInScale 0.3s ease-out forwards; }
+        .welcome-animate { animation: welcome-fade-in 0.6s ease-out 0.3s forwards; }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(5px); }
+        .hero-gradient { background: linear-gradient(145deg, rgba(241, 245, 249, 0.2), rgba(255, 255, 255, 0.8)), radial-gradient(circle at top left, rgba(59, 130, 246, 0.1), transparent 40%); }
+        .input-focus-glow:focus-within { box-shadow: 0 0 0 2px #f8fafc, 0 0 0 4px #3b82f6; }
+        .btn-glow:hover { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .tab-btn.active { color: #0c4a6e; background-color: #e0f2fe; }
+        
+        .calendar-day { transition: background-color 0.2s; position: relative; }
+        .calendar-day:hover { background-color: #f1f5f9; }
+        .calendar-task { font-size: 10px; padding: 2px 4px; border-radius: 4px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+        
+        @media print {
+            body * { visibility: hidden; }
+            #raporModal .printable-area, #raporModal .printable-area * { visibility: visible; }
+            #raporModal .printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <canvas id="confetti-canvas" class="fixed top-0 left-0 w-full h-full pointer-events-none z-[100]"></canvas>
+    
+    <div id="hosgeldinModal" class="fixed inset-0 z-[70] hidden items-center justify-center modal-backdrop">
+        <div id="welcome-card" class="bg-white text-center rounded-xl shadow-2xl p-8 w-full max-w-2xl m-4 transform transition-all opacity-0 -translate-y-4">
+            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 mb-4">
+                 <i data-lucide="sparkles" class="h-8 w-8 text-blue-600"></i>
+            </div>
+            <h2 id="welcome-message" class="text-4xl font-extrabold text-slate-900">Hoş Geldin!</h2>
+            <p class="mt-4 text-lg text-slate-500">Seni bekleyen öncelikli işlere odaklanarak güne harika bir başlangıç yapalım!</p>
+            <div id="welcome-tasks-list" class="mt-6 text-left max-h-48 overflow-y-auto space-y-2">
+                <!-- Urgent tasks will be here -->
+            </div>
+            <button id="welcome-start-btn" class="mt-8 w-full sm:w-auto bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-transform transform hover:scale-105 btn-glow">
+                Hadi Başlayalım!
+            </button>
+        </div>
+    </div>
+
+    <nav class="bg-white/80 backdrop-blur-lg sticky top-0 z-40 w-full border-b border-slate-200 no-print">
+        <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-16 items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg">
+                        <i data-lucide="scale" class="w-5 h-5 text-blue-600"></i>
+                    </div>
+                    <span class="text-xl font-semibold text-slate-800">AdaletApp</span>
+                </div>
+                <div class="hidden md:flex items-center gap-6 text-sm font-medium">
+                    <a href="#" class="text-slate-600 hover:text-slate-900 transition-colors">Panel</a>
+                    <a href="#" id="analizBtn" class="text-slate-600 hover:text-slate-900 transition-colors">Analiz</a>
+                    <a href="#" id="raporlarBtn" class="text-slate-600 hover:text-slate-900 transition-colors">Raporlar</a>
+                    <a href="#" id="ayarlarBtn" class="text-slate-600 hover:text-slate-900 transition-colors">Ayarlar</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="app" class="container mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+
+        <header class="mb-10 p-8 rounded-2xl border border-slate-200 hero-gradient fade-in no-print">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-slate-900">Ara Karar Takip Sistemi</h1>
+            <p class="mt-2 text-lg text-slate-500">Zabıt Katipleri için Modern ve Etkin Çözüm</p>
+            <div id="hero-stats" class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+        </header>
+
+        <div class="mb-6 flex flex-col md:flex-row gap-4 items-center no-print">
+             <div class="relative w-full md:flex-1 input-focus-glow rounded-lg">
+                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
+                <input type="text" id="aramaInput" placeholder="Dosya adı veya karar içeriğinde ara..." class="w-full pl-12 pr-4 py-3 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900">
+            </div>
+            <button id="yeniDosyaBtn" class="w-full md:w-auto flex-shrink-0 flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-50 focus:ring-blue-500 btn-glow">
+                <i data-lucide="folder-plus" class="w-5 h-5"></i><span>Yeni Kayıt Ekle</span>
+            </button>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 no-print">
+            <div class="flex items-center gap-4">
+                <div id="main-tabs" class="flex space-x-2 p-1 bg-slate-100 rounded-lg">
+                    <button data-tab="aktif" class="tab-btn px-4 py-2 text-sm font-semibold rounded-md transition-colors active">Aktif Dosyalar</button>
+                    <button data-tab="pasif" class="tab-btn px-4 py-2 text-sm font-semibold text-slate-600 rounded-md transition-colors">Tamamlanmış Dosyalar</button>
+                </div>
+                <button id="takvimBtn" class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors">
+                     <i data-lucide="calendar-days" class="w-4 h-4"></i><span>Takvim Görünümü</span>
+                </button>
+            </div>
+        </div>
+        
+        <div id="filter-container" class="mb-8 no-print">
+             <div id="filter-buttons" class="flex flex-wrap justify-center sm:justify-start gap-2 p-1.5 bg-slate-100 rounded-full">
+                <button data-filter="all" class="filter-btn bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium transition-all duration-200">Tüm Kararlar</button>
+                <button data-filter="upcoming" class="filter-btn text-slate-600 px-4 py-2 rounded-full text-sm font-medium hover:bg-white transition-all duration-200">Yaklaşanlar</button>
+                <button data-filter="overdue" class="filter-btn text-slate-600 px-4 py-2 rounded-full text-sm font-medium hover:bg-white transition-all duration-200">Süresi Geçenler</button>
+                <button data-filter="completed" class="filter-btn text-slate-600 px-4 py-2 rounded-full text-sm font-medium hover:bg-white transition-all duration-200">Tamamlananlar</button>
+            </div>
+        </div>
+
+        <div id="aktif-dosyalar-container">
+            <main id="aktifDosyaListesi" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></main>
+            <div id="aktif-empty-state" class="hidden text-center py-16">
+                 <i data-lucide="folder-check" class="w-20 h-20 mx-auto text-slate-400"></i>
+                 <h3 class="mt-4 text-xl font-semibold text-slate-700">Aktif Dosya Bulunmuyor</h3>
+                 <p class="mt-1 text-slate-500">'Yeni Kayıt Ekle' butonu ile takibe başlayın.</p>
+            </div>
+        </div>
+        
+        <div id="pasif-dosyalar-container" class="hidden">
+            <main id="tamamlanmisDosyaListesi" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></main>
+             <div id="pasif-empty-state" class="hidden text-center py-16">
+                 <i data-lucide="archive" class="w-20 h-20 mx-auto text-slate-400"></i>
+                 <h3 class="mt-4 text-xl font-semibold text-slate-700">Henüz Tamamlanmış Dosya Yok</h3>
+                 <p class="mt-1 text-slate-500">Aktif dosyalardaki tüm kararlar tamamlandığında buraya taşınır.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modals -->
+    <div id="yeniKayitModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-lg m-4 transform transition-all fade-in-scale">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Yeni Dosya ve Ara Karar Ekle</h2>
+            <form id="yeniKayitForm" class="space-y-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-800 border-b border-slate-200 pb-2 mb-3">Dosya Bilgileri</h3>
+                    <div class="relative input-focus-glow rounded-lg">
+                        <label for="dosyaAdi" class="block text-sm font-medium text-slate-700 mb-1">Dosya Adı / Numarası (Zorunlu)</label>
+                        <input type="text" id="dosyaAdi" name="dosyaAdi" class="w-full px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900" placeholder="Örn: Ankara 3. Asliye Hukuk - 2024/123 E." required>
+                    </div>
+                </div>
+                 <div>
+                    <h3 class="text-lg font-semibold text-slate-800 border-b border-slate-200 pb-2 mb-3">İlk Ara Karar (İsteğe Bağlı)</h3>
+                     <div class="space-y-4">
+                        <div class="relative input-focus-glow rounded-lg">
+                            <label for="gorevAciklama" class="block text-sm font-medium text-slate-700 mb-1">Ara Karar Açıklaması</label>
+                            <textarea id="gorevAciklama" name="gorevAciklama" rows="3" class="w-full px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900" placeholder="Müzekkere yazılacak, talimat hazırlanacak vb."></textarea>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                             <div class="relative input-focus-glow rounded-lg">
+                                <label for="gorevHedefGun" class="block text-sm font-medium text-slate-700 mb-1">Hedeflenen Gün (Sayı)</label>
+                                <input type="number" id="gorevHedefGun" name="gorevHedefGun" min="0" class="w-full px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900" placeholder="Örn: 7">
+                            </div>
+                             <div class="relative input-focus-glow rounded-lg">
+                                <label for="gorevOncelik" class="block text-sm font-medium text-slate-700 mb-1">Öncelik</label>
+                                <select id="gorevOncelik" name="gorevOncelik" class="w-full px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900">
+                                    <option value="normal">Normal</option>
+                                    <option value="acil">Acil</option>
+                                </select>
+                            </div>
+                        </div>
+                     </div>
+                </div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" class="modal-cancel-btn px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">İptal</button>
+                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors btn-glow">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="gorevModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-md m-4 transform transition-all fade-in-scale">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Yeni Ara Karar Ekle</h2>
+            <form id="gorevForm" class="space-y-4">
+                <input type="hidden" id="gorevDosyaId">
+                 <div class="relative input-focus-glow rounded-lg">
+                    <label for="ekGorevAciklama" class="block text-sm font-medium text-slate-700 mb-1">Ara Karar Açıklaması</label>
+                    <textarea id="ekGorevAciklama" rows="3" class="w-full px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900" placeholder="Müzekkere yazılacak, talimat hazırlanacak vb." required></textarea>
+                </div>
+                <div class="relative input-focus-glow rounded-lg">
+                    <label for="ekGorevHedefGun" class="block text-sm font-medium text-slate-700 mb-1">Hedeflenen Gün (Sayı)</label>
+                    <input type="number" id="ekGorevHedefGun" min="0" class="w-full px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900" placeholder="Örn: 3" required>
+                </div>
+                 <div class="relative input-focus-glow rounded-lg">
+                    <label for="ekGorevOncelik" class="block text-sm font-medium text-slate-700 mb-1">Öncelik</label>
+                    <select id="ekGorevOncelik" class="w-full px-4 py-2 bg-slate-100 border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900">
+                        <option value="normal">Normal</option>
+                        <option value="acil">Acil</option>
+                    </select>
+                </div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" class="modal-cancel-btn px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">İptal</button>
+                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors btn-glow">Kararı Ekle</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-sm m-4 transform transition-all fade-in-scale">
+            <div class="text-center">
+                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                     <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600"></i>
+                </div>
+                <h3 class="mt-4 text-lg font-medium leading-6 text-slate-900" id="confirmTitle">Emin misiniz?</h3>
+                <div class="mt-2">
+                    <p class="text-sm text-slate-500" id="confirmMessage"></p>
+                </div>
+            </div>
+            <div class="mt-6 grid grid-cols-2 gap-3">
+                <button type="button" id="confirmCancel" class="w-full justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-base font-medium text-slate-700 shadow-sm hover:bg-slate-50">İptal</button>
+                <button type="button" id="confirmDelete" class="w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700">Evet, Sil</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="completeConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-sm m-4 transform transition-all fade-in-scale">
+            <div class="text-center">
+                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+                     <i data-lucide="check-circle" class="h-6 w-6 text-blue-600"></i>
+                </div>
+                <h3 class="mt-4 text-lg font-medium leading-6 text-slate-900">Kararı Tamamla</h3>
+                <div class="mt-2">
+                    <p class="text-sm text-slate-500">Bu ara kararı 'Tamamlandı' olarak işaretlemek istediğinizden emin misiniz?</p>
+                </div>
+            </div>
+            <div class="mt-6 grid grid-cols-2 gap-3">
+                <button type="button" id="completeConfirmCancel" class="w-full justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-base font-medium text-slate-700 shadow-sm hover:bg-slate-50">İptal</button>
+                <button type="button" id="completeConfirmAction" class="w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700">Evet, Tamamla</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overdueTasksModal" class="fixed inset-0 z-[60] hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-2xl m-4 transform transition-all fade-in-scale">
+            <div class="text-center">
+                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
+                     <i data-lucide="siren" class="h-6 w-6 text-yellow-600"></i>
+                </div>
+                <h3 class="mt-4 text-2xl font-bold leading-6 text-slate-900">Süresi Geçmiş Kararlar Tespit Edildi!</h3>
+                <p class="mt-2 text-slate-500">Lütfen aşağıdaki her bir karar için işlem yapın.</p>
+            </div>
+            <div id="overdue-tasks-list" class="mt-6 max-h-[60vh] overflow-y-auto space-y-3 p-1"></div>
+        </div>
+    </div>
+
+    <div id="analizModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-2xl m-4 transform transition-all fade-in-scale">
+            <div class="flex justify-between items-start">
+                 <h2 class="text-2xl font-bold text-slate-900 mb-6">Performans Analizi</h2>
+                 <button class="modal-cancel-btn text-slate-500 hover:text-slate-800 transition-colors">
+                     <i data-lucide="x" class="w-6 h-6"></i>
+                 </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-1 flex flex-col items-center justify-center bg-slate-50 p-6 rounded-lg">
+                    <div id="analizPuanCircle" class="w-32 h-32 rounded-full flex items-center justify-center text-white font-extrabold text-4xl" >
+                        <span id="analizPuan">--</span>
+                    </div>
+                    <p class="mt-3 text-lg font-semibold text-slate-700">Performans Puanı</p>
+                </div>
+                <div class="md:col-span-2">
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div class="bg-slate-100 p-4 rounded-lg"><p class="text-2xl font-bold text-blue-600" id="analizToplamGorev">--</p><p class="text-sm text-slate-500">Toplam Karar</p></div>
+                        <div class="bg-slate-100 p-4 rounded-lg"><p class="text-2xl font-bold text-green-600" id="analizTamamlananGorev">--</p><p class="text-sm text-slate-500">Tamamlanan</p></div>
+                        <div class="bg-slate-100 p-4 rounded-lg"><p class="text-2xl font-bold text-red-600" id="analizSuresiGecenGorev">--</p><p class="text-sm text-slate-500">Süresi Geçen</p></div>
+                        <div class="bg-slate-100 p-4 rounded-lg"><p class="text-2xl font-bold text-slate-800" id="analizTamamlanmaOrani">--%</p><p class="text-sm text-slate-500">Tamamlanma Oranı</p></div>
+                    </div>
+                    <div id="analizGeriBildirim" class="mt-6 p-4 rounded-lg text-center"><h4 id="analizGeriBildirimTitle" class="font-bold text-lg">--</h4><p id="analizGeriBildirimText" class="text-sm mt-1">--</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="raporModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-3xl m-4 transform transition-all fade-in-scale">
+            <div class="printable-area p-8">
+                <div class="flex justify-between items-start">
+                     <h2 class="text-2xl font-bold text-slate-900 mb-6">Genel Durum Raporu</h2>
+                     <button class="modal-cancel-btn text-slate-500 hover:text-slate-800 transition-colors no-print">
+                         <i data-lucide="x" class="w-6 h-6"></i>
+                     </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 mb-4">Ara Karar Dağılımı</h3>
+                        <canvas id="raporChart"></canvas>
+                    </div>
+                    <div id="raporStats" class="space-y-4"></div>
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-end no-print">
+                <button id="raporYazdirBtn" class="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Raporu Yazdır
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="takvimModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+         <div class="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-4xl m-4 transform transition-all fade-in-scale flex flex-col">
+              <div class="p-4 border-b border-slate-200 flex justify-between items-center">
+                 <div class="flex items-center gap-4">
+                     <button id="prev-month-btn" class="p-2 rounded-full hover:bg-slate-100"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                     <h2 id="calendar-month-year" class="text-xl font-bold text-slate-900 text-center w-48">--</h2>
+                     <button id="next-month-btn" class="p-2 rounded-full hover:bg-slate-100"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                 </div>
+                 <button class="modal-cancel-btn text-slate-500 hover:text-slate-800 transition-colors">
+                     <i data-lucide="x" class="w-6 h-6"></i>
+                 </button>
+            </div>
+            <div id="calendar-grid" class="grid grid-cols-7 flex-1"></div>
+         </div>
+    </div>
+    
+    <div id="takvimGorevleriModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-lg m-4 transform transition-all fade-in-scale">
+            <div class="flex justify-between items-start mb-6">
+                 <h2 id="takvimGorevleriTitle" class="text-2xl font-bold text-slate-900">Günün Görevleri</h2>
+                 <button class="modal-cancel-btn text-slate-500 hover:text-slate-800 transition-colors">
+                     <i data-lucide="x" class="w-6 h-6"></i>
+                 </button>
+            </div>
+            <div id="takvimGorevleriListesi" class="space-y-3 max-h-96 overflow-y-auto"></div>
+        </div>
+    </div>
+    
+    <div id="ayarlarModal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-2xl p-8 w-full max-w-lg m-4 transform transition-all fade-in-scale">
+            <div class="flex justify-between items-start mb-6">
+                 <h2 class="text-2xl font-bold text-slate-900">Ayarlar</h2>
+                 <button class="modal-cancel-btn text-slate-500 hover:text-slate-800 transition-colors">
+                     <i data-lucide="x" class="w-6 h-6"></i>
+                 </button>
+            </div>
+            <div class="space-y-6">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-800">Kullanıcı Bilgileri</h3>
+                    <div class="mt-2 space-y-3 p-4 bg-slate-50 rounded-lg">
+                        <div class="relative input-focus-glow rounded-lg">
+                            <label for="userNameInput" class="block text-sm font-medium text-slate-700 mb-1">İsim Soyisim</label>
+                            <input type="text" id="userNameInput" placeholder="Adınızı ve soyadınızı girin" class="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900">
+                        </div>
+                        <div class="relative input-focus-glow rounded-lg">
+                            <label for="courthouseNameInput" class="block text-sm font-medium text-slate-700 mb-1">Mahkeme Adı</label>
+                            <input type="text" id="courthouseNameInput" placeholder="Örn: Ankara Adliyesi" class="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-0 text-slate-900">
+                        </div>
+                    </div>
+                </div>
+                 <div>
+                    <h3 class="text-lg font-semibold text-slate-800">Bildirimler</h3>
+                     <div class="mt-2 p-4 bg-slate-50 rounded-lg flex justify-between items-center">
+                        <label for="notificationToggle" class="font-medium">Tarayıcı Bildirimleri</label>
+                        <div class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="notificationToggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-800">Veri Yönetimi</h3>
+                    <div class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <button id="exportDataBtn" class="flex items-center justify-center gap-2 bg-green-100 text-green-800 px-4 py-2 rounded-lg font-semibold hover:bg-green-200 transition-colors"><i data-lucide="download" class="w-4 h-4"></i>Dışa Aktar</button>
+                        <button id="importDataBtn" class="flex items-center justify-center gap-2 bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold hover:bg-blue-200 transition-colors"><i data-lucide="upload" class="w-4 h-4"></i>İçe Aktar</button>
+                        <input type="file" id="importFileInput" class="hidden" accept=".json">
+                        <button id="clearDataBtn" class="flex items-center justify-center gap-2 bg-red-100 text-red-800 px-4 py-2 rounded-lg font-semibold hover:bg-red-200 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i>Tümünü Sil</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-5 right-5 z-[70] px-6 py-3 rounded-lg shadow-lg opacity-0 translate-y-10 transition-all duration-300 border">
+        <span id="toast-message"></span>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let dosyalar = JSON.parse(localStorage.getItem('adaletAppDosyalarV4')) || [];
+            let settings = JSON.parse(localStorage.getItem('adaletAppSettingsV1')) || { notifications: true, userName: '', courthouseName: '' };
+            let currentFilter = 'all';
+            let activeTab = 'aktif';
+            let confirmCallback = null;
+            let reportChartInstance = null;
+            let calendarDate = new Date();
+            let notifiedTasks = new Set(JSON.parse(sessionStorage.getItem('adaletAppNotifiedTasks')) || []);
+
+            // --- DOM SELECTORS ---
+            const aktifDosyaListesi = document.getElementById('aktifDosyaListesi');
+            const tamamlanmisDosyaListesi = document.getElementById('tamamlanmisDosyaListesi');
+            const yeniDosyaBtn = document.getElementById('yeniDosyaBtn');
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            const heroStats = document.getElementById('hero-stats');
+            const mainTabs = document.getElementById('main-tabs');
+            const aramaInput = document.getElementById('aramaInput');
+            const aktifContainer = document.getElementById('aktif-dosyalar-container');
+            const pasifContainer = document.getElementById('pasif-dosyalar-container');
+            const aktifEmptyState = document.getElementById('aktif-empty-state');
+            const pasifEmptyState = document.getElementById('pasif-empty-state');
+            const modals = {
+                yeniKayit: document.getElementById('yeniKayitModal'),
+                gorev: document.getElementById('gorevModal'),
+                confirm: document.getElementById('confirmModal'),
+                completeConfirm: document.getElementById('completeConfirmModal'),
+                overdueTasks: document.getElementById('overdueTasksModal'),
+                analiz: document.getElementById('analizModal'),
+                rapor: document.getElementById('raporModal'),
+                takvim: document.getElementById('takvimModal'),
+                ayarlar: document.getElementById('ayarlarModal'),
+                takvimGorevleri: document.getElementById('takvimGorevleriModal'),
+                hosgeldin: document.getElementById('hosgeldinModal'),
+            };
+            const yeniKayitForm = document.getElementById('yeniKayitForm');
+            const gorevForm = document.getElementById('gorevForm');
+            const confirmMessage = document.getElementById('confirmMessage');
+            const confirmCancel = document.getElementById('confirmCancel');
+            const confirmDelete = document.getElementById('confirmDelete');
+            const completeConfirmAction = document.getElementById('completeConfirmAction');
+            const completeConfirmCancel = document.getElementById('completeConfirmCancel');
+            const overdueTasksList = document.getElementById('overdue-tasks-list');
+            const analizBtn = document.getElementById('analizBtn');
+            const raporlarBtn = document.getElementById('raporlarBtn');
+            const raporYazdirBtn = document.getElementById('raporYazdirBtn');
+            const takvimBtn = document.getElementById('takvimBtn');
+            const confettiCanvas = document.getElementById('confetti-canvas');
+            const myConfetti = confetti.create(confettiCanvas, { resize: true });
+            const ayarlarBtn = document.getElementById('ayarlarBtn');
+            const notificationToggle = document.getElementById('notificationToggle');
+            const exportDataBtn = document.getElementById('exportDataBtn');
+            const importDataBtn = document.getElementById('importDataBtn');
+            const importFileInput = document.getElementById('importFileInput');
+            const clearDataBtn = document.getElementById('clearDataBtn');
+            const userNameInput = document.getElementById('userNameInput');
+            const courthouseNameInput = document.getElementById('courthouseNameInput');
+            const welcomeStartBtn = document.getElementById('welcome-start-btn');
+
+            // --- HELPER & CORE FUNCTIONS ---
+            const getFutureDate = (days) => { const date = new Date(); date.setDate(date.getDate() + days); return date.toISOString().split('T')[0]; }
+            const getPastDate = (days) => { const date = new Date(); date.setDate(date.getDate() - days); return date.toISOString().split('T')[0]; }
+            const saveData = () => localStorage.setItem('adaletAppDosyalarV4', JSON.stringify(dosyalar));
+            const saveSettings = () => localStorage.setItem('adaletAppSettingsV1', JSON.stringify(settings));
+            const showModal = (modalName) => { if(modals[modalName]) { modals[modalName].classList.remove('hidden'); modals[modalName].classList.add('flex'); } }
+            const hideAllModals = () => { Object.values(modals).forEach(modal => { if(modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } }); }
+            const triggerConfetti = () => myConfetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+            const showToast = (message, type = 'normal') => {
+                toast.className = 'fixed bottom-5 right-5 z-[70] px-6 py-3 rounded-lg shadow-lg transition-all duration-300 border'; // Reset
+                switch(type) {
+                    case 'warning': toast.classList.add('bg-yellow-600', 'border-yellow-500', 'text-white'); break;
+                    case 'error': toast.classList.add('bg-red-600', 'border-red-500', 'text-white'); break;
+                    default: toast.classList.add('bg-slate-800', 'border-slate-600', 'text-white');
+                }
+                toastMessage.textContent = message;
+                toast.classList.remove('opacity-0', 'translate-y-10');
+                setTimeout(() => toast.classList.add('opacity-0', 'translate-y-10'), 4000);
+            }
+            const showConfirmModal = (message, onConfirm) => { confirmMessage.textContent = message; confirmCallback = onConfirm; showModal('confirm'); }
+
+            // --- SETTINGS FUNCTIONS ---
+            function applySettings() {
+                notificationToggle.checked = settings.notifications;
+                userNameInput.value = settings.userName || '';
+                courthouseNameInput.value = settings.courthouseName || '';
+            }
+
+            // --- ANALYSIS FUNCTIONS ---
+            function getFeedback(puan) {
+                if (puan >= 90) return { title: "Harika İş Çıkarıyorsun!", text: "Tüm kararları zamanında takip ediyorsun. Bu düzenli ve sorumlu çalışma şeklin takdire şayan. Böyle devam et!", color: "green" };
+                if (puan >= 70) return { title: "Gayet İyi Gidiyorsun!", text: "İşlerinin büyük bir kısmını zamanında tamamlıyorsun. Planlı çalışmaya devam ederek zirveye oynayabilirsin.", color: "blue" };
+                if (puan >= 50) return { title: "Biraz Dikkate İhtiyaç Var", text: "Bazı aksaklıklar yaşanıyor gibi. Süresi yaklaşan kararlara öncelik vererek durumu kontrol altına alabilirsin. Sana güveniyoruz!", color: "yellow" };
+                return { title: "Dikkat! İşler Birikiyor", text: "Gecikmiş kararların sayısı artıyor. Hadi, acil olanlardan başlayarak bir an önce toparlanalım. Yapabilirsin!", color: "red" };
+            }
+            function calculateAnalysis() {
+                const allGorevler = dosyalar.flatMap(d => d.gorevler);
+                if (allGorevler.length === 0) return { total: 0, tamamlanan: 0, suresiGecen: 0, oran: 0, puan: 100, feedback: getFeedback(100) };
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const tamamlanan = allGorevler.filter(g => g.durum === 'yapildi').length;
+                const suresiGecen = allGorevler.filter(g => new Date(g.sonTarih) < today && g.durum === 'yapilacak').length;
+                const critical = dosyalar.filter(d => d.isCritical === true).length;
+                const oran = Math.round((tamamlanan / allGorevler.length) * 100);
+                let puan = 100 - (suresiGecen * 5) - (critical * 15);
+                return { total: allGorevler.length, tamamlanan, suresiGecen, oran, puan: Math.max(0, puan), feedback: getFeedback(puan) };
+            }
+
+            // --- NOTIFICATION FUNCTIONS ---
+            function setupNotifications() {
+                if (!("Notification" in window)) console.log("Browser bildirimleri desteklemiyor.");
+                else if (Notification.permission === "default") Notification.requestPermission();
+            }
+            function checkAndSendNotifications() {
+                if (!settings.notifications || Notification.permission !== "granted") return;
+                const todayStr = new Date().toISOString().split('T')[0];
+                const today = new Date(); today.setHours(0,0,0,0);
+                dosyalar.flatMap(d => d.gorevler.map(g => ({...g, dosyaAd: d.ad}))).forEach(gorev => {
+                    if(gorev.durum === 'yapilacak' && !notifiedTasks.has(gorev.id)){
+                        const isOverdue = new Date(gorev.sonTarih) < today;
+                        const isToday = gorev.sonTarih === todayStr;
+                        if(isToday || isOverdue) {
+                             new Notification(isOverdue ? 'Süresi Geçmiş Karar!' : 'Bugün Son Gün!', { body: `${gorev.dosyaAd} dosyasına ait "${gorev.aciklama}" kararı için işlem yapmalısınız.` });
+                             notifiedTasks.add(gorev.id);
+                        }
+                    }
+                });
+                sessionStorage.setItem('adaletAppNotifiedTasks', JSON.stringify([...notifiedTasks]));
+            }
+
+            // --- RENDER FUNCTIONS ---
+            function renderStats() {
+                const analysisData = calculateAnalysis();
+                const { puan, feedback } = analysisData;
+                const allGorevler = dosyalar.flatMap(d => d.gorevler);
+                const bekleyenler = allGorevler.filter(g => g.durum === 'yapilacak').length;
+                const tamamlananlar = allGorevler.filter(g => g.durum === 'yapildi').length;
+                const suresiGecenler = allGorevler.filter(g => new Date(g.sonTarih) < new Date(new Date().setHours(0,0,0,0)) && g.durum === 'yapilacak').length;
+                let scoreColorClasses = '', scoreBorderColorClasses = '';
+                switch(feedback.color) {
+                    case 'green': scoreColorClasses = 'bg-green-500'; scoreBorderColorClasses = 'text-green-900'; break;
+                    case 'blue': scoreColorClasses = 'bg-blue-500'; scoreBorderColorClasses = 'text-blue-900'; break;
+                    case 'yellow': scoreColorClasses = 'bg-yellow-500'; scoreBorderColorClasses = 'text-yellow-900'; break;
+                    case 'red': scoreColorClasses = 'bg-red-500'; scoreBorderColorClasses = 'text-red-900'; break;
+                }
+                heroStats.innerHTML = `
+                    <div class="bg-white/50 p-4 rounded-xl border border-slate-200 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                        <div class="w-24 h-24 rounded-full flex items-center justify-center text-white font-extrabold text-3xl ${scoreColorClasses} shadow-lg"><span>${puan}</span></div>
+                        <h4 class="mt-3 text-md font-bold ${scoreBorderColorClasses}">${feedback.title}</h4><p class="text-xs text-slate-500 mt-1">${feedback.text.split('.')[0]}.</p>
+                    </div>
+                    <button data-filter-hero="all" class="hero-stat-card bg-white/50 p-6 rounded-xl border border-slate-200 text-center transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-blue-300 flex flex-col justify-center items-center"><h4 class="text-sm font-medium text-slate-500">Bekleyen Ara Karar Sayısı</h4><p class="text-4xl font-bold text-slate-900 mt-2">${bekleyenler}</p></button>
+                    <button data-filter-hero="overdue" class="hero-stat-card bg-white/50 p-6 rounded-xl border border-slate-200 text-center transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-red-300 flex flex-col justify-center items-center"><h4 class="text-sm font-medium text-slate-500">Süresi Geçenler</h4><p class="text-4xl font-bold mt-2 ${suresiGecenler > 0 ? 'text-red-600' : 'text-slate-900'}">${suresiGecenler}</p></button>
+                    <button data-filter-hero="completed" class="hero-stat-card bg-white/50 p-6 rounded-xl border border-slate-200 text-center transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-green-300 flex flex-col justify-center items-center"><h4 class="text-sm font-medium text-slate-500">Toplam Tamamlanan</h4><p class="text-4xl font-bold text-green-600 mt-2">${tamamlananlar}</p></button>`;
+            }
+            function renderDosyaCard(dosya) {
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const gorevleriGoster = (activeTab === 'aktif') ? dosya.gorevler.filter(g => {
+                    const sonTarih = new Date(g.sonTarih), isOverdue = sonTarih < today && g.durum === 'yapilacak';
+                    if (currentFilter === 'all') return true; if (currentFilter === 'completed') return g.durum === 'yapildi'; if (currentFilter === 'overdue') return isOverdue;
+                    if (currentFilter === 'upcoming') { const diffDays = Math.ceil((sonTarih - today) / 86400000); return diffDays >= 0 && diffDays <= 7 && g.durum === 'yapilacak'; }
+                    return false;
+                }) : dosya.gorevler;
+                if (activeTab === 'aktif' && currentFilter !== 'all' && gorevleriGoster.length === 0) return null;
+                const dosyaCard = document.createElement('div');
+                const isCriticalClass = dosya.isCritical ? 'border-red-400 bg-red-50/50 shadow-md shadow-red-500/10' : 'border-slate-200';
+                dosyaCard.className = `bg-white rounded-xl border ${isCriticalClass} overflow-hidden transition-all duration-300 hover:shadow-blue-500/10 hover:border-slate-300 fade-in`;
+                dosyaCard.innerHTML = `<div class="p-4 bg-white/50 border-b ${dosya.isCritical ? 'border-red-300' : 'border-slate-200'} flex justify-between items-center"><h2 class="text-lg font-bold text-slate-800 flex items-center gap-3"><i data-lucide="folder-kanban" class="w-6 h-6 ${dosya.isCritical ? 'text-red-600' : 'text-blue-600'}"></i><span>${dosya.ad}</span></h2><div class="flex items-center gap-1"><button data-dosya-id="${dosya.id}" class="yeni-gorev-btn text-slate-500 hover:text-slate-900 p-2 rounded-full transition-colors"><i data-lucide="plus-circle" class="w-5 h-5"></i></button><button data-dosya-id="${dosya.id}" class="dosya-sil-btn text-slate-500 hover:text-red-500 p-2 rounded-full transition-colors"><i data-lucide="trash-2" class="w-5 h-5"></i></button></div></div><div class="p-4 space-y-3 max-h-96 overflow-y-auto">${gorevleriGoster.length > 0 ? gorevleriGoster.map(g => {
+                    const sonTarih = new Date(g.sonTarih); let durumText, durumColor, tarihClass = 'text-slate-500';
+                    const isOverdue = sonTarih < today && g.durum === 'yapilacak';
+                    if (g.durum === 'yapildi') { durumText = 'Tamamlandı'; durumColor = 'bg-green-100 text-green-800'; }
+                    else if (isOverdue) { durumText = 'Süresi Geçti'; durumColor = 'bg-red-100 text-red-800'; tarihClass = 'text-red-600 font-semibold'; }
+                    else { const diffDays = Math.ceil((sonTarih - today) / 86400000); if (diffDays === 0) { durumText = 'Son Gün'; durumColor = 'bg-yellow-100 text-yellow-800'; tarihClass = 'text-yellow-600 font-semibold'; } else { durumText = `${diffDays} gün kaldı`; durumColor = 'bg-blue-100 text-blue-800'; } }
+                    const completionButton = g.durum === 'yapildi' ? `<button data-dosya-id="${dosya.id}" data-gorev-id="${g.id}" class="gorev-toggle-btn text-xs flex items-center gap-1.5 font-semibold px-3 py-1.5 bg-slate-200 text-slate-600 hover:bg-slate-300 rounded-md transition-colors"><i data-lucide="undo-2" class="w-3.5 h-3.5"></i> Geri Al</button>` : `<button data-dosya-id="${dosya.id}" data-gorev-id="${g.id}" class="gorev-toggle-btn text-xs flex items-center gap-1.5 font-semibold px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors shadow"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Tamamla</button>`;
+                    return `<div class="gorev-item flex items-start gap-4 p-3 rounded-lg bg-slate-50 border border-slate-200/80 group"><div class="flex-1"><p class="text-slate-800 ${g.durum === 'yapildi' ? 'line-through text-slate-400' : ''}">${g.aciklama}</p><div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-xs"><span class="flex items-center gap-1.5 ${tarihClass}"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${new Date(g.sonTarih).toLocaleDateString('tr-TR')}</span><span class="font-medium px-2.5 py-0.5 rounded-full ${durumColor}">${durumText}</span>${g.oncelik === 'acil' ? `<span class="font-medium px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3 h-3"></i> Acil</span>` : ''}</div></div><div class="flex flex-col items-end gap-2">${completionButton}<button data-dosya-id="${dosya.id}" data-gorev-id="${g.id}" class="gorev-sil-btn text-slate-400 hover:text-red-500 transition-colors p-1 rounded-full opacity-0 group-hover:opacity-100"><i data-lucide="x" class="w-4 h-4"></i></button></div></div>`}).join('') : `<div class="text-center text-slate-500 py-4">Filtreyle eşleşen ara karar yok.</div>`}</div>`;
+                return dosyaCard;
+            }
+            function render() {
+                const aramaTerimi = aramaInput.value.toLowerCase();
+                const filtrelenmisDosyalar = aramaTerimi ? dosyalar.filter(d => d.ad.toLowerCase().includes(aramaTerimi) || d.gorevler.some(g => g.aciklama.toLowerCase().includes(aramaTerimi))) : dosyalar;
+                aktifDosyaListesi.innerHTML = ''; tamamlanmisDosyaListesi.innerHTML = '';
+                const aktifList = [], pasifList = [];
+                filtrelenmisDosyalar.forEach(d => { (d.gorevler.length > 0 && d.gorevler.every(g => g.durum === 'yapildi')) ? pasifList.push(d) : aktifList.push(d); });
+                aktifList.forEach(d => { const card = renderDosyaCard(d); if(card) aktifDosyaListesi.appendChild(card); });
+                pasifList.forEach(d => { const card = renderDosyaCard(d); if(card) tamamlanmisDosyaListesi.appendChild(card); });
+                aktifEmptyState.classList.toggle('hidden', aktifDosyaListesi.children.length > 0);
+                pasifEmptyState.classList.toggle('hidden', tamamlanmisDosyaListesi.children.length > 0);
+                lucide.createIcons();
+                attachEventListeners();
+                renderStats();
+            }
+
+            // --- CALENDAR FUNCTIONS ---
+            function renderCalendar() {
+                const month = calendarDate.getMonth(), year = calendarDate.getFullYear();
+                document.getElementById('calendar-month-year').textContent = `${new Intl.DateTimeFormat('tr-TR', { month: 'long' }).format(calendarDate)} ${year}`;
+                const grid = document.getElementById('calendar-grid');
+                grid.innerHTML = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map(day => `<div class="text-center font-bold text-xs text-slate-500 py-2">${day}</div>`).join('');
+                const firstDay = (new Date(year, month, 1).getDay() + 6) % 7;
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const tasksByDate = {};
+                dosyalar.flatMap(d=>d.gorevler).forEach(g => { if (!tasksByDate[g.sonTarih]) tasksByDate[g.sonTarih] = []; tasksByDate[g.sonTarih].push(g); });
+                for (let i = 0; i < firstDay; i++) grid.insertAdjacentHTML('beforeend', '<div></div>');
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const tasks = tasksByDate[dateStr] || [];
+                    const dayEl = document.createElement('div');
+                    dayEl.className = 'calendar-day border-t border-r border-slate-200 p-2 h-28 overflow-y-auto';
+                    let dayHTML = `<div class="font-semibold text-sm">${day}</div>`;
+                    if (tasks.length > 0) {
+                        dayEl.classList.add('cursor-pointer');
+                        dayEl.dataset.date = dateStr;
+                        dayHTML += tasks.map(t => `<div class="calendar-task text-white ${t.oncelik === 'acil' ? 'bg-red-500' : 'bg-blue-500'}" title="${t.aciklama}">${t.aciklama}</div>`).join('');
+                        dayHTML += `<div class="absolute bottom-1 right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">${tasks.length}</div>`;
+                    }
+                    dayEl.innerHTML = dayHTML;
+                    grid.appendChild(dayEl);
+                }
+            }
+            function showTasksForDate(dateStr) {
+                const tasks = dosyalar.flatMap(d => d.gorevler.map(g => ({...g, dosyaAd: d.ad}))).filter(g => g.sonTarih === dateStr);
+                document.getElementById('takvimGorevleriTitle').textContent = `${new Date(dateStr).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} Kararları`;
+                document.getElementById('takvimGorevleriListesi').innerHTML = tasks.length > 0 ? tasks.map(g => `<div class="p-3 rounded-lg bg-slate-50 border border-slate-200"><p class="font-semibold text-slate-800">${g.aciklama}</p><p class="text-sm text-slate-500 mt-1">${g.dosyaAd}</p></div>`).join('') : '<p class="text-center text-slate-500">Bu gün için planlanmış bir karar bulunmuyor.</p>';
+                showModal('takvimGorevleri');
+            }
+
+            // --- EVENT HANDLERS & LISTENERS ---
+            function attachEventListeners() {
+                document.querySelectorAll('.yeni-gorev-btn').forEach(b => b.onclick = (e) => { e.stopPropagation(); showModal('gorev'); document.getElementById('gorevDosyaId').value = e.currentTarget.dataset.dosyaId; });
+                document.querySelectorAll('.gorev-toggle-btn').forEach(b => b.onclick = (e) => { e.stopPropagation(); const { dosyaId, gorevId } = e.currentTarget.dataset; const d = dosyalar.find(d => d.id == dosyaId); const g = d?.gorevler.find(g => g.id == gorevId); if (g) { if (g.durum === 'yapildi') { g.durum = 'yapilacak'; showToast('Karar "yapılacak" olarak işaretlendi.'); if(d.isCritical) d.isCritical = false; saveData(); render(); } else { modals.completeConfirm.dataset.dosyaId = dosyaId; modals.completeConfirm.dataset.gorevId = gorevId; showModal('completeConfirm'); } } });
+                document.querySelectorAll('.gorev-sil-btn').forEach(b => b.onclick = (e) => { e.stopPropagation(); showConfirmModal('Bu ara kararı silmek istediğinize emin misiniz?', () => { const { dosyaId, gorevId } = e.currentTarget.dataset; const d = dosyalar.find(d => d.id == dosyaId); if (d) { d.gorevler = d.gorevler.filter(g => g.id != gorevId); showToast('Ara karar silindi.'); saveData(); render(); } }); });
+                document.querySelectorAll('.dosya-sil-btn').forEach(b => b.onclick = (e) => { e.stopPropagation(); showConfirmModal('Bu dosyayı ve tüm kararlarını silmek istediğinize emin misiniz?', () => { dosyalar = dosyalar.filter(d => d.id != e.currentTarget.dataset.dosyaId); showToast('Dosya silindi.'); saveData(); render(); }); });
+                document.querySelectorAll('.calendar-day[data-date]').forEach(day => day.addEventListener('click', () => showTasksForDate(day.dataset.date)));
+            }
+            
+            // Static Listeners
+            document.querySelectorAll('.modal-cancel-btn').forEach(btn => btn.onclick = hideAllModals);
+            yeniDosyaBtn.addEventListener('click', () => { yeniKayitForm.reset(); showModal('yeniKayit'); });
+            confirmCancel.addEventListener('click', hideAllModals); completeConfirmCancel.addEventListener('click', hideAllModals);
+            confirmDelete.addEventListener('click', () => { if (confirmCallback) confirmCallback(); hideAllModals(); });
+            completeConfirmAction.addEventListener('click', () => {
+                const { dosyaId, gorevId } = modals.completeConfirm.dataset; const g = dosyalar.find(d => d.id == dosyaId)?.gorevler.find(g => g.id == gorevId);
+                if (g) { g.durum = 'yapildi'; showToast('Karar başarıyla tamamlandı!'); triggerConfetti(); saveData(); render(); }
+                hideAllModals();
+            });
+            yeniKayitForm.addEventListener('submit', (e) => {
+                e.preventDefault(); const dosyaAdi = e.target.dosyaAdi.value.trim(); if (!dosyaAdi) return;
+                const yeniDosya = { id: Date.now(), ad: dosyaAdi, gorevler: [], isCritical: false };
+                const aciklama = e.target.gorevAciklama.value.trim(), gunStr = e.target.gorevHedefGun.value, oncelik = e.target.gorevOncelik.value;
+                if (aciklama && gunStr) { const gun = parseInt(gunStr, 10); if (!isNaN(gun) && gun >= 0) { yeniDosya.gorevler.push({ id: Date.now(), aciklama, sonTarih: getFutureDate(gun), oncelik, durum: 'yapilacak' }); } else { showToast('Hedef gün için geçerli bir sayı girin.', 'error'); return; } }
+                dosyalar.unshift(yeniDosya); saveData(); render(); showToast('Yeni kayıt oluşturuldu.'); hideAllModals();
+            });
+            gorevForm.addEventListener('submit', (e) => {
+                e.preventDefault(); const dosyaId = document.getElementById('gorevDosyaId').value, aciklama = e.target.ekGorevAciklama.value.trim(), gunStr = e.target.ekGorevHedefGun.value, oncelik = e.target.ekGorevOncelik.value;
+                const gun = parseInt(gunStr, 10); if (isNaN(gun) || gun < 0) { showToast('Hedef gün için geçerli bir sayı girin.', 'error'); return; }
+                const dosya = dosyalar.find(d => d.id == dosyaId);
+                if (dosya && aciklama) { dosya.gorevler.push({ id: Date.now(), aciklama, sonTarih: getFutureDate(gun), oncelik, durum: 'yapilacak' }); dosya.gorevler.sort((a,b) => new Date(a.sonTarih) - new Date(b.sonTarih)); saveData(); render(); showToast('Yeni ara karar eklendi.'); hideAllModals(); }
+            });
+            mainTabs.addEventListener('click', (e) => { if(e.target.tagName !== 'BUTTON') return; activeTab = e.target.dataset.tab; document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); if (activeTab === 'aktif') { aktifContainer.classList.remove('hidden'); pasifContainer.classList.add('hidden'); } else { aktifContainer.classList.add('hidden'); pasifContainer.classList.remove('hidden'); } render(); });
+            document.getElementById('filter-buttons').addEventListener('click', (e) => { if(e.target.tagName === 'BUTTON') { currentFilter = e.target.dataset.filter; document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('bg-blue-600', 'text-white')); e.target.classList.add('bg-blue-600', 'text-white'); render(); } });
+            heroStats.addEventListener('click', (e) => { const card = e.target.closest('.hero-stat-card'); if (!card) return; const filter = card.dataset.filterHero; if (filter) { document.querySelector('#main-tabs button[data-tab="aktif"]').click(); const btn = document.querySelector(`#filter-buttons button[data-filter="${filter}"]`); if (btn) { btn.click(); btn.scrollIntoView({ behavior: 'smooth', block: 'center' }); } } });
+            aramaInput.addEventListener('input', render);
+            analizBtn.addEventListener('click', (e) => { 
+                e.preventDefault(); 
+                const data = calculateAnalysis(); 
+                document.getElementById('analizPuan').textContent = data.puan;
+                document.getElementById('analizToplamGorev').textContent = data.total;
+                document.getElementById('analizTamamlananGorev').textContent = data.tamamlanan;
+                document.getElementById('analizSuresiGecenGorev').textContent = data.suresiGecen;
+                document.getElementById('analizTamamlanmaOrani').textContent = `${data.oran}%`;
+                const puanCircle = document.getElementById('analizPuanCircle');
+                const feedbackContainer = document.getElementById('analizGeriBildirim');
+                const feedbackTitle = document.getElementById('analizGeriBildirimTitle');
+                const feedbackText = document.getElementById('analizGeriBildirimText');
+                feedbackTitle.textContent = data.feedback.title;
+                feedbackText.textContent = data.feedback.text;
+                puanCircle.className = 'w-32 h-32 rounded-full flex items-center justify-center text-white font-extrabold text-4xl';
+                feedbackContainer.className = 'mt-6 p-4 rounded-lg text-center';
+                switch(data.feedback.color) {
+                    case 'green': puanCircle.classList.add('bg-green-500'); feedbackContainer.classList.add('bg-green-50', 'text-green-800'); feedbackTitle.classList.add('text-green-900'); break;
+                    case 'blue': puanCircle.classList.add('bg-blue-500'); feedbackContainer.classList.add('bg-blue-50', 'text-blue-800'); feedbackTitle.classList.add('text-blue-900'); break;
+                    case 'yellow': puanCircle.classList.add('bg-yellow-500'); feedbackContainer.classList.add('bg-yellow-50', 'text-yellow-800'); feedbackTitle.classList.add('text-yellow-900'); break;
+                    case 'red': puanCircle.classList.add('bg-red-500'); feedbackContainer.classList.add('bg-red-50', 'text-red-800'); feedbackTitle.classList.add('text-red-900'); break;
+                }
+                showModal('analiz'); 
+            });
+            raporlarBtn.addEventListener('click', (e) => { 
+                e.preventDefault(); 
+                const allGorevler = dosyalar.flatMap(d => d.gorevler);
+                const tamamlanan = allGorevler.filter(g => g.durum === 'yapildi').length;
+                const suresiGecen = allGorevler.filter(g => new Date(g.sonTarih) < new Date(new Date().setHours(0,0,0,0)) && g.durum === 'yapilacak').length;
+                const bekleyen = allGorevler.length - tamamlanan;
+                document.getElementById('raporStats').innerHTML = `
+                    <div class="flex justify-between items-center p-4 bg-slate-100 rounded-lg"><span class="font-semibold text-slate-700">Toplam Ara Karar</span><span class="font-bold text-xl text-slate-900">${allGorevler.length}</span></div>
+                    <div class="flex justify-between items-center p-4 bg-green-50 rounded-lg"><span class="font-semibold text-green-700">Tamamlanan Kararlar</span><span class="font-bold text-xl text-green-900">${tamamlanan}</span></div>
+                    <div class="flex justify-between items-center p-4 bg-blue-50 rounded-lg"><span class="font-semibold text-blue-700">Bekleyen Kararlar</span><span class="font-bold text-xl text-blue-900">${bekleyen}</span></div>
+                    <div class="flex justify-between items-center p-4 bg-red-50 rounded-lg"><span class="font-semibold text-red-700">Süresi Geçen Kararlar</span><span class="font-bold text-xl text-red-900">${suresiGecen}</span></div>
+                `;
+                const ctx = document.getElementById('raporChart').getContext('2d'); if(reportChartInstance) reportChartInstance.destroy(); reportChartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: ['Tamamlanan', 'Bekleyen', 'Süresi Geçen'], datasets: [{ data: [tamamlanan, bekleyen - suresiGecen, suresiGecen], backgroundColor: ['#22c55e', '#3b82f6', '#ef4444'], borderColor: '#fff', borderWidth: 4 }] }, options: { responsive: true, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { color: '#334155' } } } } });
+                showModal('rapor'); 
+            });
+            raporYazdirBtn.addEventListener('click', () => window.print());
+            takvimBtn.addEventListener('click', () => { calendarDate = new Date(); renderCalendar(); showModal('takvim'); });
+            document.getElementById('prev-month-btn').addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar(); });
+            document.getElementById('next-month-btn').addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar(); });
+            ayarlarBtn.addEventListener('click', (e) => { e.preventDefault(); showModal('ayarlar'); });
+            notificationToggle.addEventListener('change', () => { settings.notifications = notificationToggle.checked; saveSettings(); if(settings.notifications) { showToast('Bildirimler etkinleştirildi.'); setupNotifications(); } else showToast('Bildirimler devre dışı bırakıldı.', 'warning'); });
+            exportDataBtn.addEventListener('click', () => { const dataStr = JSON.stringify({ dosyalar, settings }); const link = document.createElement('a'); link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr); link.download = `adaletapp_yedek_${new Date().toISOString().split('T')[0]}.json`; link.click(); });
+            importDataBtn.addEventListener('click', () => importFileInput.click());
+            importFileInput.addEventListener('change', (event) => { const reader = new FileReader(); reader.onload = (e) => { try { const data = JSON.parse(e.target.result); if(data.dosyalar && data.settings) { showConfirmModal("Mevcut verileriniz içe aktarılanlarla değiştirilecek. Emin misiniz?", () => { dosyalar = data.dosyalar; settings = data.settings; saveData(); saveSettings(); applySettings(); render(); showToast("Veriler başarıyla içe aktarıldı!"); }); } else throw new Error(); } catch (error) { showToast("Geçersiz dosya!", "error"); } }; reader.readAsText(event.target.files[0]); importFileInput.value = ''; });
+            clearDataBtn.addEventListener('click', () => { showConfirmModal("TÜM verileriniz kalıcı olarak silinecek. Emin misiniz?", () => { dosyalar = []; settings = { notifications: true, userName: '', courthouseName: '' }; saveData(); saveSettings(); applySettings(); render(); showToast("Tüm veriler silindi.", "error"); }); });
+            userNameInput.addEventListener('change', (e) => { settings.userName = e.target.value; saveSettings(); showToast('İsim kaydedildi.'); });
+            courthouseNameInput.addEventListener('change', (e) => { settings.courthouseName = e.target.value; saveSettings(); showToast('Mahkeme adı kaydedildi.'); });
+            welcomeStartBtn.addEventListener('click', hideAllModals);
+
+            function showWelcomeScreen() {
+                if (settings.userName) {
+                    document.getElementById('welcome-message').textContent = `Hoş Geldin, ${settings.userName}!`;
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    const urgentTasks = dosyalar.flatMap(d => d.gorevler.map(g => ({ ...g, dosyaAd: d.ad }))).filter(g => g.durum === 'yapilacak' && (g.oncelik === 'acil' || new Date(g.sonTarih) < today));
+                    const taskListEl = document.getElementById('welcome-tasks-list');
+                    if (urgentTasks.length > 0) {
+                        taskListEl.innerHTML = urgentTasks.slice(0, 5).map(task => `<div class="p-3 bg-slate-50 border rounded-md flex items-center gap-3"><i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 flex-shrink-0"></i><div><p class="font-medium text-slate-700">${task.aciklama}</p><p class="text-xs text-slate-500">${task.dosyaAd}</p></div></div>`).join('');
+                    } else {
+                        taskListEl.innerHTML = `<div class="p-3 bg-green-50 border-green-200 border rounded-md flex items-center gap-3 text-center"><i data-lucide="check-circle-2" class="w-5 h-5 text-green-600 flex-shrink-0"></i><p class="font-medium text-green-700">Tebrikler! Bekleyen acil veya süresi geçmiş bir işin yok.</p></div>`;
+                    }
+                    showModal('hosgeldin');
+                    lucide.createIcons();
+                    document.getElementById('welcome-card').classList.add('welcome-animate');
+                    sessionStorage.setItem('welcomeShown', 'true');
+                }
+            }
+            
+            function checkForOverdueTasks() {
+                const overdueTasks = [];
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                dosyalar.forEach(dosya => { if (dosya.gorevler.length > 0 && dosya.gorevler.every(g => g.durum === 'yapildi')) return; dosya.gorevler.forEach(gorev => { if (new Date(gorev.sonTarih) < today && gorev.durum === 'yapilacak') { overdueTasks.push({ ...gorev, dosyaId: dosya.id, dosyaAd: dosya.ad }); } }); });
+                if (overdueTasks.length > 0) { renderOverdueTasks(overdueTasks); showModal('overdueTasks'); }
+            }
+            function renderOverdueTasks(tasks) {
+                overdueTasksList.innerHTML = '';
+                tasks.forEach(task => { const item = document.createElement('div'); item.className = 'p-4 bg-slate-50 rounded-lg border flex flex-col sm:flex-row items-center justify-between gap-4'; item.dataset.gorevId = task.id; item.innerHTML = `<div class="text-left flex-1"><p class="font-semibold text-slate-800">${task.aciklama}</p><p class="text-sm text-slate-500">Dosya: ${task.dosyaAd}</p></div><div class="flex-shrink-0 flex gap-3 w-full sm:w-auto"><button data-dosya-id="${task.dosyaId}" data-gorev-id="${task.id}" class="overdue-no-btn flex-1 sm:flex-auto px-4 py-2 text-sm font-semibold text-red-700 bg-red-100 hover:bg-red-200 rounded-md transition-colors">Hayır</button><button data-dosya-id="${task.dosyaId}" data-gorev-id="${task.id}" class="overdue-yes-btn flex-1 sm:flex-auto px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors">Evet, 3 Gün Ekle</button></div>`; overdueTasksList.appendChild(item); });
+                document.querySelectorAll('.overdue-yes-btn').forEach(btn => btn.onclick = handleOverdueYes); document.querySelectorAll('.overdue-no-btn').forEach(btn => btn.onclick = handleOverdueNo);
+            }
+            function handleOverdueYes(e) {
+                const { dosyaId, gorevId } = e.currentTarget.dataset; const dosya = dosyalar.find(d => d.id == dosyaId); const gorev = dosya?.gorevler.find(g => g.id == gorevId);
+                if (gorev) { gorev.sonTarih = getFutureDate(3); saveData(); showToast('3 gün ilave süre tanındı. Bu kararı 3 gün içerisinde ivedilikle yerine getirin!', 'warning'); const listItem = e.currentTarget.closest('div[data-gorev-id]'); listItem.remove(); if (overdueTasksList.children.length === 0) hideAllModals(); render(); }
+            }
+            function handleOverdueNo(e) {
+                const { dosyaId } = e.currentTarget.dataset; const dosya = dosyalar.find(d => d.id == dosyaId);
+                if (dosya) { dosya.isCritical = true; saveData(); showToast(`"${dosya.ad}" dosyası kritik olarak işaretlendi.`, 'error'); const listItem = e.currentTarget.closest('div[data-gorev-id]'); listItem.remove(); if (overdueTasksList.children.length === 0) hideAllModals(); render(); }
+            }
+
+            // --- INITIAL LOAD ---
+            applySettings();
+            render();
+            setupNotifications();
+            checkAndSendNotifications();
+            if(!sessionStorage.getItem('welcomeShown')) {
+                showWelcomeScreen();
+            }
+            checkForOverdueTasks();
+        });
+    </script>
+</body>
+</html>
